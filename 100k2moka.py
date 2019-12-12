@@ -59,9 +59,11 @@ class Case100kMoka(object):
     """
     Represents a 100k case. Instantiated using a GeL participant ID and interpretation request ID (<irid>-<version>)
     """
-    def __init__(self, participantID, intrequestID):
+    def __init__(self, participantID, intrequestID, assembly, flags):
         self.participantID = participantID
         self.intrequestID = intrequestID
+        self.assembly = assembly
+        self.flags = flags 
         self.proband_100k_rows = []
         self.internalPatientID = None
         self.patient_status = None
@@ -131,16 +133,25 @@ class Case100kMoka(object):
                     )
             cursor.execute(sql)
         # Create NGStest and record in patient log
+        # Convert genome build to ID from Moka Item table. Should always be either GRCh38 or GRCh37, but if anything else record as 'Unknown'
+        if self.assembly = 'GRCh38':
+            build_id = 3224
+        elif self.assembly = 'GRCh37':
+            build_id = 109
+        else:
+            build_id = 289
         sql = (
-            "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, BookingAuthorisedByID, Service, GELProbandID, IRID) "
-            "Values ({internalPatientID}, 1199901218, 2, '{today_date}', '{clinicianID}', 1201865434, 0, '{participantID}', '{intrequestID}');"
+            "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, ResultBuild, BookingAuthorisedByID, Service, GELProbandID, IRID, GeL_case_flags) "
+            "Values ({internalPatientID}, 1199901218, 2, '{today_date}', '{clinicianID}', {build_id}, 1201865434, 0, '{participantID}', '{intrequestID}', '{flags}');"
             ).format(
                 internalPatientID=self.internalPatientID,
                 today_date=datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p'),
                 clinicianID=self.clinicianID,
+                build_id=build_id,
                 participantID=self.participantID,
                 intrequestID=self.intrequestID,
-                resultcode=resultcode
+                resultcode=resultcode,
+                flags=self.flags
                 )
         cursor.execute(sql)
         sql = (
@@ -190,7 +201,15 @@ def main():
         if not file_to_check.read().startswith('participant_ID\tCIP_ID\tgroup'):
             sys.exit('Input file does not contain expected header row. Exiting')
     # Create a list of 100k case objects
-    cases = [Case100kMoka(case.split('\t')[0], case.split('\t')[1]) for case in input_cases.readlines() if not case.startswith('participant_ID')]
+    cases = []
+    with open(args.input_file, 'r') as case_list:
+        for case in case_list:
+            if not case.startswith('participant_ID'):
+                participantID = case.split('\t')[0]
+                intrequestID = case.split('\t')[1]
+                assembly = case.split('\t')[2]
+                flags = case.split('\t')[3
+                cases.append(Case100kMoka(participantID, intrequestID, assembly, flags))
     # Create a Moka connection
     mokaconn = MokaConnector()
     # Book cases into moka
