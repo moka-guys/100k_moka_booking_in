@@ -17,9 +17,10 @@ optional arguments:
                         tab-separated log file
 """
 import argparse
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 import os
 import sys
+import socket
 import pyodbc
 import datetime
 
@@ -44,12 +45,11 @@ class MokaConnector(object):
     Connection to Moka database for use by other functions
     """
     def __init__(self):
-        self.cnxn = pyodbc.connect('DRIVER={{SQL Server}}; SERVER={server}; DATABASE={database};'.format(
-            server=config.get("MOKA", "SERVER"),
-            database=config.get("MOKA", "DATABASE")
-            ), 
+        self.cnxn = pyodbc.connect(
+            f'DRIVER={{ODBC Driver 17 for SQL Server}}; SERVER={config.get("MOKA", "SERVER")}; DATABASE={config.get("MOKA", "DATABASE")}; '
+            f'UID={config.get("MOKA", "USER")}; PWD={config.get("MOKA", "PASSWORD")}', 
             autocommit=True
-        )
+            )
         self.cursor = self.cnxn.cursor()
 
     def __del__(self):
@@ -76,7 +76,7 @@ class Case100kMoka(object):
         """
         Get information from Moka related to the proband 
         """
-        sql = "SELECT InternalPatientID, Referring_Clinician, PatientTrustID FROM Probands_100k WHERE Participant_ID = '{participantID}'".format(participantID=self.participantID)
+        sql = f"SELECT InternalPatientID, Referring_Clinician, PatientTrustID FROM Probands_100k WHERE Participant_ID = '{self.participantID}'"
         self.proband_100k_rows = cursor.execute(sql).fetchall()
         # Only update attributes if a single matching record is found.
         if len(self.proband_100k_rows) == 1:
@@ -89,7 +89,7 @@ class Case100kMoka(object):
         Get the patient status from Moka
         """
         if self.internalPatientID:
-            sql = "SELECT s_StatusOverall FROM Patients WHERE InternalPatientID = {internalPatientID}".format(internalPatientID=self.internalPatientID)
+            sql = f"SELECT s_StatusOverall FROM Patients WHERE InternalPatientID = {self.internalPatientID}"
             self.patient_status = cursor.execute(sql).fetchone().s_StatusOverall
 
     def get_moka_ngstests(self, cursor):
@@ -98,8 +98,9 @@ class Case100kMoka(object):
         """
         # Only execute if internal patient ID is known.
         if self.internalPatientID:
-            sql = "SELECT NGSTestID, StatusID, IRID, GELProbandID, ResultCode, BookBy, Check1ID, Check1Date, BlockAutomatedReporting FROM dbo.NGSTest WHERE InternalPatientID = {internalPatientID} AND ReferralID = 1199901218".format(
-                internalPatientID=self.internalPatientID
+            sql = (
+                "SELECT NGSTestID, StatusID, IRID, GELProbandID, ResultCode, BookBy, Check1ID, Check1Date, "
+                f"BlockAutomatedReporting FROM dbo.NGSTest WHERE InternalPatientID = {self.internalPatientID} AND ReferralID = 1199901218"
                 )
             # Capture matching NGSTests
             self.ngstests = cursor.execute(sql).fetchall()
@@ -119,63 +120,46 @@ class Case100kMoka(object):
         # If patient status is currently Complete, update it to 100K
         # If it's any other status, just leave as it is (in case it is also having other testing in the lab)
         if self.patient_status == 4:                                
-            sql = "UPDATE Patients SET s_StatusOverall = 1202218839 WHERE InternalPatientID = {internalPatientID}".format(internalPatientID=self.internalPatientID)
+            sql = f"UPDATE Patients SET s_StatusOverall = 1202218839 WHERE InternalPatientID = {self.internalPatientID}"
             cursor.execute(sql)
             # Patient Log
             sql = (
                 "INSERT INTO PatientLog (InternalPatientID, LogEntry, Date, Login, PCName) "
-                "VALUES ({internalPatientID}, 'Patients: Status changed to 100K', '{today_date}', '{username}', '{computer}');"
-                ).format(
-                    internalPatientID=self.internalPatientID,
-                    today_date=datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p'),
-                    username=os.getenv('username'),
-                    computer=os.getenv('computername')
-                    )
-            cursor.execute(sql)
+                f"VALUES ({self.internalPatientID}, 'Patients: Status changed to 100K', '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', "
+                f"'{os.path.basename(__file__)}', '{socket.gethostname()}');"
+                )
+            #cursor.execute(sql)
+            print(sql)
         # Create NGStest and record in patient log
         # Convert genome build to ID from Moka Item table. Should always be either GRCh38 or GRCh37, but if anything else record as 'Unknown'
-        if self.assembly = 'GRCh38':
+        if self.assembly == 'GRCh38':
             build_id = 3224
-        elif self.assembly = 'GRCh37':
+        elif self.assembly == 'GRCh37':
             build_id = 109
         else:
             build_id = 289
+        if self.flags:
+            flags_sql = f"'{self.flags}'"
+        else:
+            flags_sql = "Null"
         sql = (
-            "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, ResultBuild, BookingAuthorisedByID, Service, GELProbandID, IRID, GeL_case_flags) "
-            "Values ({internalPatientID}, 1199901218, 2, '{today_date}', '{clinicianID}', {build_id}, 1201865434, 0, '{participantID}', '{intrequestID}', '{flags}');"
-            ).format(
-                internalPatientID=self.internalPatientID,
-                today_date=datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p'),
-                clinicianID=self.clinicianID,
-                build_id=build_id,
-                participantID=self.participantID,
-                intrequestID=self.intrequestID,
-                resultcode=resultcode,
-                flags=self.flags
-                )
-        cursor.execute(sql)
+            "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, ResultBuild, BookingAuthorisedByID, Service, GELProbandID, IRID) "
+            f"Values ({self.internalPatientID}, 1199901218, 2, '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', '{self.clinicianID}', {build_id}, "
+            f"1201865434, 0, '{self.participantID}', '{self.intrequestID}', {flags_sql});"
+            )
+        #cursor.execute(sql)
+        print(sql)
         sql = (
             "INSERT INTO PatientLog (InternalPatientID, LogEntry, Date, Login, PCName) "
-            "VALUES ({internalPatientID}, 'NGS: GeL test request added.', '{today_date}', '{username}', '{computer}');"
-            ).format(
-                internalPatientID=self.internalPatientID,
-                today_date=datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p'),
-                username=os.getenv('username'),
-                computer=os.getenv('computername')
-                )
-        cursor.execute(sql)
+            f"VALUES ({self.internalPatientID}, 'NGS: GeL test request added.', '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', "
+            f"'{os.path.basename(__file__)}', '{socket.gethostname()}');"
+            )
+        #cursor.execute(sql)
+        print(sql)
 
 def print_log(log_file, participantid, irid, pru, status, message):
     with open(log_file, 'a') as file_obj:
-        file_obj.write(
-                "{participantid}\t{irid}\t{pru}\t{status}\t{message}\n".format(
-                participantid=participantid,
-                irid=irid,
-                pru=pru,
-                status=status,
-                message=message                
-            )
-        )
+        file_obj.write(f"{participantid}\t{irid}\t{pru}\t{status}\t{message}\n")
 
 def book_in_moka(cases, mokaconn, log_file):
     # Print header for output
@@ -198,7 +182,7 @@ def main():
     args = process_arguments()
     # Raise error if file doesn't start with expected header row
     with open(args.input_file, 'r') as file_to_check:
-        if not file_to_check.read().startswith('participant_ID\tCIP_ID\tgroup'):
+        if not file_to_check.read().startswith('participant_ID\tCIP_ID\tassembly\tflags\tgroup'):
             sys.exit('Input file does not contain expected header row. Exiting')
     # Create a list of 100k case objects
     cases = []
@@ -208,7 +192,7 @@ def main():
                 participantID = case.split('\t')[0]
                 intrequestID = case.split('\t')[1]
                 assembly = case.split('\t')[2]
-                flags = case.split('\t')[3
+                flags = case.split('\t')[3]
                 cases.append(Case100kMoka(participantID, intrequestID, assembly, flags))
     # Create a Moka connection
     mokaconn = MokaConnector()
