@@ -7,7 +7,7 @@ Requirements:
 
 usage: 100k2moka.py [-h] -i INPUT_FILE -o OUTPUT_FILE
 
-Parses output from negneg_cases.py and books negnegs into Moka
+Parses output from negneg_cases.py and books all cases into Moka
 
 optional arguments:
   -h, --help            show this help message and exit
