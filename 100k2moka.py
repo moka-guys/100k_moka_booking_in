@@ -118,11 +118,12 @@ class Case100kMoka(object):
         Create an NGStest in Moka for the case
         """
         # If patient status is currently Complete, update it to 100K
-        # If it's any other status, just leave as it is (in case it is also having other testing in the lab)
-        if self.patient_status == 4:                                
+        # If it's any other status, just leave the patient status as it is (in case it is also having other testing in the lab) and skip ahead to creating the NGS test.
+        if self.patient_status == 4:
             sql = f"UPDATE Patients SET s_StatusOverall = 1202218839 WHERE InternalPatientID = {self.internalPatientID}"
             cursor.execute(sql)
-            # Patient Log
+            # Record in patient log
+            # Use the name of the script as 'Login' and the server hostname as 'PCName'
             sql = (
                 "INSERT INTO PatientLog (InternalPatientID, LogEntry, Date, Login, PCName) "
                 f"VALUES ({self.internalPatientID}, 'Patients: Status changed to 100K', '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', "
@@ -141,12 +142,15 @@ class Case100kMoka(object):
             flags_sql = f"'{self.flags}'"
         else:
             flags_sql = "Null"
+        # Use N/A as 'BookingAuthorisedByID' since it doesn't really apply here
         sql = (
             "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, ResultBuild, BookingAuthorisedByID, Service, GELProbandID, IRID, GeL_case_flags) "
             f"Values ({self.internalPatientID}, 1199901218, 2, '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', '{self.clinicianID}', {build_id}, "
             f"1201865434, 0, '{self.participantID}', '{self.intrequestID}', {flags_sql});"
             )
         cursor.execute(sql)
+        # Record in patient log
+        # Use the name of the script as 'Login' and the server hostname as 'PCName'
         sql = (
             "INSERT INTO PatientLog (InternalPatientID, LogEntry, Date, Login, PCName) "
             f"VALUES ({self.internalPatientID}, 'NGS: GeL test request added.', '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', "
