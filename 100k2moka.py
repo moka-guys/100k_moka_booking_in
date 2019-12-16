@@ -34,7 +34,7 @@ def process_arguments():
     """
     # Create ArgumentParser object. Description message will be displayed as part of help message if script is run with -h flag
     parser = argparse.ArgumentParser(description='Parses output from negneg_cases.py and books all cases into Moka')
-    # Define the arguments that will be taken. nargs='+' allows multiple NGSTestIDs from NGSTest table in Moka can be passed as arguments.
+    # Define the arguments that will be taken.
     parser.add_argument('-i', '--input_file', required=True, help='output from negneg_cases.py')
     parser.add_argument('-o', '--output_file', required=True, help='tab-separated log file')
     # Return the arguments
@@ -57,7 +57,7 @@ class MokaConnector(object):
 
 class Case100kMoka(object):
     """
-    Represents a 100k case. Instantiated using a GeL participant ID and interpretation request ID (<irid>-<version>)
+    Represents a 100k case. Instantiated using a GeL participant ID, interpretation request ID (<irid>-<version>), genome assembly and string containing any GeL case flags
     """
     def __init__(self, participantID, intrequestID, assembly, flags):
         self.participantID = participantID
@@ -163,7 +163,7 @@ def book_in_moka(cases, mokaconn, log_file):
     print_log(log_file, 'GeLParticipantID', 'InterpretationRequestID', 'PRU', 'Status', 'Log')
     for case in cases:
         case.get_moka_details(mokaconn.cursor)
-        # Check that Moka internal patient ID and referring clinician ID found has been found for this case, if not print error to log and skip to next case
+        # Check that Moka internal patient ID and referring clinician ID has been found for this case, if not print error to log and skip to next case
         if not case.internalPatientID or not case.clinicianID:
             print_log(log_file, case.participantID, case.intrequestID, case.pru, "ERROR", "No Moka InternalPatientID and/or referring clinician found for this patient, check they are in Moka Probands_100k table")
         # If there is already an NGStest request in Moka for this interpretation request, skip to next case
