@@ -128,8 +128,7 @@ class Case100kMoka(object):
                 f"VALUES ({self.internalPatientID}, 'Patients: Status changed to 100K', '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', "
                 f"'{os.path.basename(__file__)}', '{socket.gethostname()}');"
                 )
-            #cursor.execute(sql)
-            print(sql)
+            cursor.execute(sql)
         # Create NGStest and record in patient log
         # Convert genome build to ID from Moka Item table. Should always be either GRCh38 or GRCh37, but if anything else record as 'Unknown'
         if self.assembly == 'GRCh38':
@@ -143,20 +142,18 @@ class Case100kMoka(object):
         else:
             flags_sql = "Null"
         sql = (
-            "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, ResultBuild, BookingAuthorisedByID, Service, GELProbandID, IRID) "
+            "INSERT INTO NGSTest (InternalPatientID, ReferralID, StatusID, DateRequested, BookBy, ResultBuild, BookingAuthorisedByID, Service, GELProbandID, IRID, GeL_case_flags) "
             f"Values ({self.internalPatientID}, 1199901218, 2, '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', '{self.clinicianID}', {build_id}, "
             f"1201865434, 0, '{self.participantID}', '{self.intrequestID}', {flags_sql});"
             )
-        #cursor.execute(sql)
-        print(sql)
+        cursor.execute(sql)
         sql = (
             "INSERT INTO PatientLog (InternalPatientID, LogEntry, Date, Login, PCName) "
             f"VALUES ({self.internalPatientID}, 'NGS: GeL test request added.', '{datetime.datetime.now().strftime(r'%Y%m%d %H:%M:%S %p')}', "
             f"'{os.path.basename(__file__)}', '{socket.gethostname()}');"
             )
-        #cursor.execute(sql)
-        print(sql)
-
+        cursor.execute(sql)
+        
 def print_log(log_file, participantid, irid, pru, status, message):
     with open(log_file, 'a') as file_obj:
         file_obj.write(f"{participantid}\t{irid}\t{pru}\t{status}\t{message}\n")
